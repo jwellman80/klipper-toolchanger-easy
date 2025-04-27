@@ -21,7 +21,10 @@ class ToolProbeEndstop:
         self.crash_detection_active = False
         self.crash_lasttime = 0.
         self.mcu_probe = EndstopRouter(self.printer)
-        self.homing_helper = probe.HomingViaProbeHelper(config, self.mcu_probe)
+        #self.homing_helper = probe.HomingViaProbeHelper(config, self.mcu_probe)
+        self.param_helper = probe.ProbeParameterHelper(config)
+        self.homing_helper = probe.HomingViaProbeHelper(config, self.mcu_probe, self.param_helper)
+        self.probe_session = probe.ProbeSessionHelper(config, self.param_helper, self.homing_helper.start_probe_session)
         self.cmd_helper = probe.ProbeCommandHelper(config, self, self.mcu_probe.query_endstop)
 
         # Emulate the probe object, since others rely on this.
@@ -207,7 +210,7 @@ class EndstopRouter:
             self.home_wait = self.active_mcu.home_wait
             self.multi_probe_begin = self.active_mcu.multi_probe_begin
             self.multi_probe_end = self.active_mcu.multi_probe_end
-            self.probing_move = self.active_mcu.probing_move
+###            self.probing_move = self.active_mcu.probing_move
             self.probe_prepare = self.active_mcu.probe_prepare
             self.probe_finish = self.active_mcu.probe_finish
         else:
