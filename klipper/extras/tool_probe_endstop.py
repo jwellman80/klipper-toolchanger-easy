@@ -54,10 +54,12 @@ class ToolProbeEndstop:
         if self.active_probe:
             return self.active_probe.get_offsets()
         return 0.0, 0.0, 0.0
+    
     def get_probe_params(self, gcmd=None):
         if self.active_probe:
             return self.active_probe.get_probe_params(gcmd)
         raise self.printer.command_error("No active tool probe")
+    
     def start_probe_session(self, gcmd):
         if self.active_probe:
             return self.active_probe.start_probe_session(gcmd)
@@ -158,9 +160,7 @@ class ToolProbeEndstop:
     cmd_STOP_TOOL_PROBE_CRASH_DETECTION_help = "Stop detecting tool crashes"
     def cmd_STOP_TOOL_PROBE_CRASH_DETECTION(self, gcmd):
         # Clear when current print queue is finished
-        self.reactor.register_callback(
-            lambda _: self.stop_crash_detection(),
-            self.toolhead.get_last_move_time())
+        self.toolhead.register_lookahead_callback(lambda _: self.stop_crash_detection())
 
     def stop_crash_detection(self):
         self.crash_lasttime = 0.
@@ -227,7 +227,7 @@ class EndstopRouter:
     def get_steppers(self):
         return list(self._steppers)
 
-    def on_error(self, *args):
+    def on_error(self, *args, **kwargs):
         raise self.printer.command_error("Cannot interact with probe - no active tool probe.")
     def query_endstop(self, print_time):
         if not self.active_mcu:
