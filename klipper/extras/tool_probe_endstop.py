@@ -158,9 +158,7 @@ class ToolProbeEndstop:
     cmd_STOP_TOOL_PROBE_CRASH_DETECTION_help = "Stop detecting tool crashes"
     def cmd_STOP_TOOL_PROBE_CRASH_DETECTION(self, gcmd):
         # Clear when current print queue is finished
-        self.reactor.register_callback(
-            lambda _: self.stop_crash_detection(),
-            self.toolhead.get_last_move_time())
+        self.toolhead.register_lookahead_callback(lambda _: self.stop_crash_detection())
 
     def stop_crash_detection(self):
         self.crash_lasttime = 0.
