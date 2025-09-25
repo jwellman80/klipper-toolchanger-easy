@@ -21,7 +21,10 @@ This script does the following:
 
 Running `install.sh` multiple times is a safe opearation, provided you follow the instructions below about configuration.
 ```
-wget -O - https://raw.githubusercontent.com/jwellman80/klipper-toolchanger-easy/refs/heads/main/install.sh | bash
+cd ~/
+git clone https://github.com/jwellman80/klipper-toolchanger-easy.git
+cd ~/klipper-toolchanger-easy
+./install.sh
 ```
 
 Add the following to your `printer.cfg`
