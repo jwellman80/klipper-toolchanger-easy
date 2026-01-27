@@ -12,7 +12,7 @@ class ToolProbeOffsetsHelper:
         self.tool_probe_endstop = tool_probe_endstop
 
     def get_offsets(self, gcmd=None):
-        return self.tool_probe_endstop.get_offsets()
+        return self.tool_probe_endstop.get_offsets(gcmd)
 
     def create_probe_result(self, test_pos):
         x_offset, y_offset, z_offset = self.tool_probe_endstop.get_offsets()
@@ -66,9 +66,9 @@ class ToolProbeEndstop:
         self.toolhead = self.printer.lookup_object('toolhead')
         self._detect_active_tool()
 
-    def get_offsets(self):
+    def get_offsets(self, gcmd=None):
         if self.active_probe:
-            return self.active_probe.get_offsets()
+            return self.active_probe.get_offsets(gcmd)
         return 0.0, 0.0, 0.0
     
     def get_probe_params(self, gcmd=None):
