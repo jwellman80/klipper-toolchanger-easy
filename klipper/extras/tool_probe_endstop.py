@@ -4,6 +4,21 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 from . import probe
+from . import manual_probe
+
+# Helper class to provide probe offsets interface for ToolProbeEndstop
+class ToolProbeOffsetsHelper:
+    def __init__(self, tool_probe_endstop):
+        self.tool_probe_endstop = tool_probe_endstop
+
+    def get_offsets(self, gcmd=None):
+        return self.tool_probe_endstop.get_offsets(gcmd)
+
+    def create_probe_result(self, test_pos):
+        x_offset, y_offset, z_offset = self.tool_probe_endstop.get_offsets()
+        return manual_probe.ProbeResult(
+            test_pos[0]+x_offset, test_pos[1]+y_offset,
+            test_pos[2]-z_offset, test_pos[0], test_pos[1], test_pos[2])
 
 # Virtual endstop, using a tool attached Z probe in a toolchanger setup.
 # Tool endstop change may be done either via SET_ACTIVE_TOOL_PROBE TOOL=99
@@ -21,8 +36,9 @@ class ToolProbeEndstop:
         self.crash_detection_active = False
         self.crash_lasttime = 0.
         self.mcu_probe = EndstopRouter(self.printer)
+        self.probe_offsets = ToolProbeOffsetsHelper(self)
         self.param_helper = probe.ProbeParameterHelper(config)
-        self.homing_helper = probe.HomingViaProbeHelper(config, self.mcu_probe, self.param_helper)
+        self.homing_helper = probe.HomingViaProbeHelper(config, self.mcu_probe, self.probe_offsets, self.param_helper)
         self.probe_session = probe.ProbeSessionHelper(config, self.param_helper, self.homing_helper.start_probe_session)
         self.cmd_helper = probe.ProbeCommandHelper(config, self, self.mcu_probe.query_endstop)
 
@@ -50,9 +66,9 @@ class ToolProbeEndstop:
         self.toolhead = self.printer.lookup_object('toolhead')
         self._detect_active_tool()
 
-    def get_offsets(self):
+    def get_offsets(self, gcmd=None):
         if self.active_probe:
-            return self.active_probe.get_offsets()
+            return self.active_probe.get_offsets(gcmd)
         return 0.0, 0.0, 0.0
     
     def get_probe_params(self, gcmd=None):
