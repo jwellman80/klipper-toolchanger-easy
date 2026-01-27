@@ -60,30 +60,6 @@ class Tool:
         self.printer.register_event_handler("klippy:connect",
                                     self._handle_connect)
 
-    def set_parameter(self, name, value):
-        if name in self.params and name not in self.original_params:
-            self.original_params[name] = self.params[name]
-        self.params[name] = value
-        self._apply_param(name, value)
-
-    def reset_parameter(self, name):
-        if name in self.original_params:
-            value = self.original_params[name]
-            self.params[name] = value
-            self._apply_param(name, value)
-
-    def save_parameter(self, name):
-        configfile = self.printer.lookup_object('configfile')
-        configfile.set(self.name, name, self.params[name])
-
-    def _apply_param(self, name, value):
-        if name == 'gcode_x_offset':
-                self.gcode_x_offset = float(value)
-        elif name == 'gcode_y_offset':
-                self.gcode_y_offset = float(value)
-        elif name == 'gcode_z_offset':
-                self.gcode_z_offset = float(value)
-
     def _handle_connect(self):
         self.extruder = self.printer.lookup_object(
             self.extruder_name) if self.extruder_name else None
@@ -155,7 +131,7 @@ class Tool:
         hotend_extruder = toolhead.get_extruder().name
         if self.extruder_stepper and hotend_extruder:
                 gcode.run_script_from_command(
-                    "SYNC_EXTRUDER_MOTION EXTRUDER='%s' MOTION_QUEUE=" % (self.extruder_stepper_name, ))
+                    "SYNC_EXTRUDER_MOTION EXTRUDER='%s' MOTION_QUEUE=" % (hotend_extruder, ))
                 gcode.run_script_from_command(
                     "SYNC_EXTRUDER_MOTION EXTRUDER='%s' MOTION_QUEUE='%s'" % (self.extruder_stepper_name, hotend_extruder, ))
         if self.fan:
@@ -167,6 +143,8 @@ class Tool:
             hotend_extruder = toolhead.get_extruder().name
             gcode.run_script_from_command(
                 "SYNC_EXTRUDER_MOTION EXTRUDER='%s' MOTION_QUEUE=" % (self.extruder_stepper_name,))
+            gcode.run_script_from_command(
+                "SYNC_EXTRUDER_MOTION EXTRUDER='%s' MOTION_QUEUE=%s" % (hotend_extruder, hotend_extruder,))
 
     def _config_get(self, config, name, default_value):
         return config.get(name, self.toolchanger.config.get(name, default_value))
