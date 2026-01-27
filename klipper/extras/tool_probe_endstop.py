@@ -19,10 +19,11 @@ class ToolProbeEndstop:
         self.active_tool_number = -1
         self.gcode_macro = self.printer.load_object(config, 'gcode_macro')
         self.crash_detection_active = False
+        self.probe_offsets = probe.ProbeOffsetsHelper(config)
         self.crash_lasttime = 0.
         self.mcu_probe = EndstopRouter(self.printer)
         self.param_helper = probe.ProbeParameterHelper(config)
-        self.homing_helper = probe.HomingViaProbeHelper(config, self.mcu_probe, self.param_helper)
+        self.homing_helper = probe.HomingViaProbeHelper(config, self.mcu_probe, self.probe_offsets,  self.param_helper)
         self.probe_session = probe.ProbeSessionHelper(config, self.param_helper, self.homing_helper.start_probe_session)
         self.cmd_helper = probe.ProbeCommandHelper(config, self, self.mcu_probe.query_endstop)
 
