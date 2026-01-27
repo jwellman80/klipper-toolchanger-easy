@@ -31,8 +31,8 @@ class ToolProbe:
 
     def get_probe_params(self, gcmd=None):
         return self.probe_session.get_probe_params(gcmd)
-    def get_offsets(self):
-        return self.probe_offsets.get_offsets()
+    def get_offsets(self, gcmd=None):
+        return self.probe_offsets.get_offsets(gcmd)
     def start_probe_session(self, gcmd):
         return self.probe_session.start_probe_session(gcmd)
 

@@ -51,9 +51,9 @@ class ToolProbeEndstop:
         self.toolhead = self.printer.lookup_object('toolhead')
         self._detect_active_tool()
 
-    def get_offsets(self):
+    def get_offsets(self, gcmd=None):
         if self.active_probe:
-            return self.active_probe.get_offsets()
+            return self.active_probe.get_offsets(gcmd)
         return 0.0, 0.0, 0.0
     
     def get_probe_params(self, gcmd=None):
