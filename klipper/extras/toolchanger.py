@@ -564,7 +564,7 @@ class Toolchanger:
     def _set_toolchange_transform(self):
         self.gcode_transform.tool = None
         self.gcode_move.reset_last_position()
-        self.gcode.run_script_from_command("SET_GCODE_OFFSET X=0.0 Y=0.0 Z=0.0")
+        #self.gcode.run_script_from_command("SET_GCODE_OFFSET X=0.0 Y=0.0 Z=0.0")
 
     def _restore_state_and_transform(self, tool):
         self.gcode_transform.tool = tool
@@ -578,7 +578,10 @@ class Toolchanger:
     def _restore_axis(self, position, axis):
         pos = self._position_with_tool_offset(position, None)
         self.gcode.run_script_from_command("G90")
-        self.gcode_move.cmd_G1(self.gcode.create_gcode_command("G0", "G0", self._position_to_xyz(pos, axis)))
+        params = self._position_to_xyz(pos, axis)
+        if 'params_fast_speed' in self.params:
+            params['F'] = self.params['params_fast_speed']
+        self.gcode_move.cmd_G1(self.gcode.create_gcode_command("G0", "G0", params))
 
     def run_gcode(self, name, template, extra_context):
         curtime = self.printer.get_reactor().monotonic()
