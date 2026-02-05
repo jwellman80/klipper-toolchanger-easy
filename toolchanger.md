@@ -157,6 +157,11 @@ All gcode macros below have the following context available:
   #  params_dock_x: 10.0
   #  params_dock_y: 50.0
   #  params_input_shaper_freq_x: 100
+  #  params_input_shaper_type_x: 'mzv'
+  #  params_input_shaper_damping_ratio_x: 0.1
+  #  params_input_shaper_freq_y: 100
+  #  params_input_shaper_type_y: 'mzv'
+  #  params_input_shaper_damping_ratio_y: 0.1
   #  params_retract_mm: 8 
 # t_command_restore_axis: XYZ
    # Which axis to restore with the T<n> command, see SELECT_TOOL for command for more info.
