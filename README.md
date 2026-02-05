@@ -54,12 +54,6 @@ managed_services: klipper
 primary_branch: main
 ```
 
-## Changelog
-* 2026.1.25 - Example script for camera tool alignment.
-* 2025.12.26 - **Breaking change** Stop using Gcode offset for tool offsets. Uses a dedicated gcode transform instead.
-* 2025.12.25 - Use Bezier curves for rounded paths.
-* 2025.12.25 - Manual rail update to latest Klipper.
-
 ## Updates that add new files
 
 Note that if an update has new klipper files, they **will not** be automatically installed into Klipper.
