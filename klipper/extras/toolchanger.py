@@ -565,11 +565,47 @@ class Toolchanger:
             result[INDEX_TO_XYZ[index]] = v
         return result
 
-    def _restore_axis(self, position, axis, tool):
-        if not axis:
-            return
-        pos = self._position_with_tool_offset(position, axis, tool)
-        self.gcode_move.cmd_G1(self.gcode.create_gcode_command("G0", "G0", pos))
+    def _save_state(self, restore_axis, tool):
+        """What is going on here:
+         - toolhead position - the position of the toolhead mount relative to homing sensors.
+         - gcode position - the position of the nozzle, relative to the bed;
+             since each tool has a slightly different geometry, each tool has a set of gcode offsets that determine the delta.
+        Normally gcode commands use gcode position, but that can mean different toolhead positions depending on
+        which tool is mounted, making tool changes unreliable.
+        To solve that, during toolchange Gcode offsets are set to zero and the gcode moves directly work with toolhead position.
+        And the nozzle location will deviate for each tool.
+
+        To restore the new tool's nozzle to where the previous tool left off, the restore position is manually computed in the code below.
+        """
+        gcode_status = self.gcode_move.get_status()
+
+        self.gcode.run_script_from_command("SAVE_GCODE_STATE NAME=_toolchange_state")
+        self.last_change_pickup_tool = tool
+        self.last_change_gcode_position = list(gcode_status['gcode_position'])
+        self.last_change_gcode_offset = gcode_status['homing_origin']
+        self.last_change_restore_axis = restore_axis
+
+    def _set_toolchange_transform(self):
+        self.gcode_transform.tool = None
+        self.gcode_move.reset_last_position()
+        #self.gcode.run_script_from_command("SET_GCODE_OFFSET X=0.0 Y=0.0 Z=0.0")
+
+    def _restore_state_and_transform(self, tool):
+        self.gcode_transform.tool = tool
+        self.gcode_move.reset_last_position()
+        self.gcode.run_script_from_command("RESTORE_GCODE_STATE NAME=_toolchange_state MOVE=0")
+        self.last_change_gcode_offset = None
+        if self.last_change_restore_axis:
+            self._restore_axis(self.last_change_gcode_position, self.last_change_restore_axis)
+            self.gcode.run_script_from_command("RESTORE_GCODE_STATE NAME=_toolchange_state MOVE=0")
+
+    def _restore_axis(self, position, axis):
+        pos = self._position_with_tool_offset(position, None)
+        self.gcode.run_script_from_command("G90")
+        params = self._position_to_xyz(pos, axis)
+        if 'params_fast_speed' in self.params:
+            params['F'] = self.params['params_fast_speed']
+        self.gcode_move.cmd_G1(self.gcode.create_gcode_command("G0", "G0", params))
 
     def run_gcode(self, name, template, extra_context):
         current_status = self.status
