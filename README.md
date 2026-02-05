@@ -1,6 +1,6 @@
 # klipper-toolchanger Easy Install
 
-# Requires Klipper 0.13.0-457 or greater
+# WARNING!  Current Klipper Repo has breaking changes for this Toolchanger Plugin!
 
 To roll back to a known working Klipper version use the following commands: 
 ```

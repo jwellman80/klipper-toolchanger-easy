@@ -5,7 +5,6 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import logging
 from . import probe
-from . import manual_probe
 
 class ToolProbe:
     def __init__(self, config):
@@ -14,7 +13,7 @@ class ToolProbe:
         self.name = config.get_name()
         self.mcu_probe = probe.ProbeEndstopWrapper(config)
         self.probe_offsets = probe.ProbeOffsetsHelper(config)
-        self.probe_session = ProbeSessionHelper(config, self.mcu_probe, self.probe_offsets)
+        self.probe_session = ProbeSessionHelper(config, self.mcu_probe)
 
         # Crash detection stuff
         pin = config.get('pin')
@@ -32,17 +31,16 @@ class ToolProbe:
 
     def get_probe_params(self, gcmd=None):
         return self.probe_session.get_probe_params(gcmd)
-    def get_offsets(self, gcmd=None):
-        return self.probe_offsets.get_offsets(gcmd)
+    def get_offsets(self):
+        return self.probe_offsets.get_offsets()
     def start_probe_session(self, gcmd):
         return self.probe_session.start_probe_session(gcmd)
 
 # Helper to track multiple probe attempts in a single command
 class ProbeSessionHelper:
-    def __init__(self, config, mcu_probe, probe_offsets):
+    def __init__(self, config, mcu_probe):
         self.printer = config.get_printer()
         self.mcu_probe = mcu_probe
-        self.probe_offsets = probe_offsets
         gcode = self.printer.lookup_object('gcode')
         self.dummy_gcode_cmd = gcode.create_gcode_command("", "", {})
         # Infer Z position to move to during a probe
@@ -133,13 +131,11 @@ class ProbeSessionHelper:
             raise self.printer.command_error(reason)
         # Allow axis_twist_compensation to update results
         self.printer.send_event("probe:update_results", epos)
-        # Create ProbeResult
-        result = self.probe_offsets.create_probe_result(epos)
         # Report results
         gcode = self.printer.lookup_object('gcode')
         gcode.respond_info("probe at %.3f,%.3f is z=%.6f"
                            % (epos[0], epos[1], epos[2]))
-        return result
+        return epos[:3]
     def run_probe(self, gcmd):
         if not self.multi_probe_pending:
             self._probe_state_error()
@@ -154,7 +150,7 @@ class ProbeSessionHelper:
             pos = self._probe(params['probe_speed'])
             positions.append(pos)
             # Check samples tolerance
-            z_positions = [p.bed_z for p in positions]
+            z_positions = [p[2] for p in positions]
             if max(z_positions)-min(z_positions) > params['samples_tolerance']:
                 if retries >= params['samples_tolerance_retries']:
                     raise gcmd.error("Probe samples exceed samples_tolerance")
@@ -164,7 +160,7 @@ class ProbeSessionHelper:
             # Retract
             if len(positions) < sample_count:
                 toolhead.manual_move(
-                    probexy + [pos.bed_z + params['sample_retract_dist']],
+                    probexy + [pos[2] + params['sample_retract_dist']],
                     params['lift_speed'])
         # Calculate result
         epos = probe.calc_probe_z_average(positions, params['samples_result'])
