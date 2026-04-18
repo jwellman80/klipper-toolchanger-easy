@@ -14,6 +14,7 @@ class ToolProbeOffsetsHelper:
     def get_offsets(self, gcmd=None):
         return self.tool_probe_endstop.get_offsets(gcmd)
 
+    # Support legacy Klipper versions where HomingViaProbeHelper calls this
     def create_probe_result(self, test_pos):
         x_offset, y_offset, z_offset = self.tool_probe_endstop.get_offsets()
         return manual_probe.ProbeResult(

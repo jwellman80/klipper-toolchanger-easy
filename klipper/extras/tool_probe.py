@@ -134,7 +134,13 @@ class ProbeSessionHelper:
         # Allow axis_twist_compensation to update results
         self.printer.send_event("probe:update_results", epos)
         # Create ProbeResult
-        result = self.probe_offsets.create_probe_result(epos)
+        if hasattr(manual_probe, 'create_probe_result'): 
+            # Klipper post 7f5e918
+            offsets = self.probe_offsets.get_offsets()
+            result = manual_probe.create_probe_result(epos, offsets)
+        else:
+            # Legacy
+            result = self.probe_offsets.create_probe_result(epos)
         # Report results
         gcode = self.printer.lookup_object('gcode')
         gcode.respond_info("probe at %.3f,%.3f is z=%.6f"
