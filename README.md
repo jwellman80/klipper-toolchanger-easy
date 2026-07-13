@@ -1,6 +1,6 @@
 # klipper-toolchanger Easy Install
 
-# Requires Klipper 0.13.0-457 or greater
+# Requires Klipper 0.13.0-707 or greater
 
 To roll back to a known working Klipper version use the following commands: 
 ```
