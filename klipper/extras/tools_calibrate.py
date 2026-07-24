@@ -128,9 +128,21 @@ class ToolsCalibrate:
         location = self.locate_sensor(gcmd)
         self.last_result = [location[i] - self.sensor_location[i] for i in
                             range(3)]
-        self.gcode.respond_info("Tool offset is %.6f,%.6f,%.6f"
-                                % (self.last_result[0], self.last_result[1],
-                                   self.last_result[2]))
+        toolchanger = self.printer.lookup_object('toolchanger', None)
+        active_tool = toolchanger.active_tool if toolchanger else None
+        if active_tool and active_tool.tool_number >= 0:
+            tool_label = "T%d" % (active_tool.tool_number,)
+        elif active_tool:
+            tool_label = active_tool.name
+        else:
+            tool_label = "Tool"
+        self.gcode.respond_info(
+            "%s Offsets:\n"
+            "gcode_x_offset: %.6f\n"
+            "gcode_y_offset: %.6f\n"
+            "gcode_z_offset: %.6f" % (
+                tool_label, self.last_result[0], self.last_result[1],
+                self.last_result[2]))
 
     cmd_TOOL_CALIBRATE_SAVE_TOOL_OFFSET_help = "Save tool offset calibration to config"
 
