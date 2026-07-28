@@ -46,6 +46,10 @@ function use_tap_per_tool {
     ln -sfn "${INSTALL_PATH}"/examples/easy-additions/tool_detection.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs/
     cp -n "${INSTALL_PATH}"/examples/easy-additions/user-configs/tools/tap_per_tool/* "${CONFIG_PATH}"/toolchanger/tools
     ln -sfn "${INSTALL_PATH}"/examples/easy-additions/user-configs/toolchanger-include.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs/toolchanger-include.cfg
+    cp -n "${INSTALL_PATH}"/examples/easy-additions/user-configs/toolchanger-config.cfg "${CONFIG_PATH}"/toolchanger
+    ln -sfn "${INSTALL_PATH}"/examples/easy-additions/homing.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs
+    ln -sfn "${INSTALL_PATH}"/examples/easy-additions/toolchanger.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs
+    ln -sfn "${INSTALL_PATH}"/examples/easy-additions/crash-detection.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs
 }
 
 function z_probe_on_shuttle {
@@ -53,6 +57,21 @@ function z_probe_on_shuttle {
 
     cp -n "${INSTALL_PATH}"/examples/easy-additions/user-configs/tools/probe_on_shuttle/* "${CONFIG_PATH}"/toolchanger/tools
     ln -sfn "${INSTALL_PATH}"/examples/easy-additions/user-configs/toolchanger-include_scanner.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs/toolchanger-include.cfg
+    ln -sfn "${INSTALL_PATH}"/examples/easy-additions/tool_detection.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs/
+    cp -n "${INSTALL_PATH}"/examples/easy-additions/user-configs/toolchanger-config.cfg "${CONFIG_PATH}"/toolchanger
+    ln -sfn "${INSTALL_PATH}"/examples/easy-additions/homing.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs
+    ln -sfn "${INSTALL_PATH}"/examples/easy-additions/toolchanger.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs
+    ln -sfn "${INSTALL_PATH}"/examples/easy-additions/crash-detection.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs
+}
+
+function switch_probe {
+    echo "[INSTALL] Experimental Switch Probe"
+
+    cp -n "${INSTALL_PATH}"/examples/easy-additions/user-configs/tools/switch_probe/* "${CONFIG_PATH}"/toolchanger/tools
+    ln -sfn "${INSTALL_PATH}"/examples/easy-additions/user-configs/toolchanger-include_switch_probe.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs/toolchanger-include.cfg
+    cp -n "${INSTALL_PATH}"/examples/easy-additions/user-configs/toolchanger-config_switch_probe.cfg "${CONFIG_PATH}"/toolchanger/toolchanger-config.cfg
+    ln -sfn "${INSTALL_PATH}"/examples/easy-additions/homing_switch_probe.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs/homing.cfg
+    ln -sfn "${INSTALL_PATH}"/examples/easy-additions/toolchanger_switch_probe.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs/toolchanger.cfg
 }
 
 function link_extension {
@@ -66,20 +85,17 @@ function do_shared_config {
     mkdir -p "${CONFIG_PATH}"/toolchanger/tools
     mkdir -p "${CONFIG_PATH}"/toolchanger/readonly-configs
 
-    ln -sfn "${INSTALL_PATH}"/examples/easy-additions/toolchanger.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs
-    ln -sfn "${INSTALL_PATH}"/examples/easy-additions/homing.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs
+
     ln -sfn "${INSTALL_PATH}"/examples/easy-additions/calibrate-offsets.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs
     ln -sfn "${INSTALL_PATH}"/examples/easy-additions/toolchanger-macros.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs
-    ln -sfn "${INSTALL_PATH}"/examples/easy-additions/crash-detection.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs
-
-    cp -n "${INSTALL_PATH}"/examples/easy-additions/user-configs/toolchanger-config.cfg "${CONFIG_PATH}"/toolchanger
 }
 
 function z_probe_option {
     echo -e "\n\n\nHow will you Z probe?"
     echo "1. I will use the TAP sensor as my Z probe on each tool"
     echo "2. I will use a shuttle mounted Beacon/Cartographer/Eddy/etc as my Z probe"
-    read -rp "Select an option [1-2]: " z_probe_choice
+    echo "3. I want to test the experimental Switch Probe"
+    read -rp "Select an option [1-3]: " z_probe_choice
 
     case $z_probe_choice in
         1)
@@ -87,6 +103,9 @@ function z_probe_option {
             ;;
         2)
             z_probe_on_shuttle
+            ;;
+        3)
+            switch_probe
             ;;
         *)
             echo "[ERROR] Invalid option selected!"
