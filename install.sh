@@ -71,6 +71,7 @@ function switch_probe {
     ln -sfn "${INSTALL_PATH}"/examples/easy-additions/user-configs/toolchanger-include_switch_probe.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs/toolchanger-include.cfg
     cp -n "${INSTALL_PATH}"/examples/easy-additions/user-configs/toolchanger-config_switch_probe.cfg "${CONFIG_PATH}"/toolchanger/toolchanger-config.cfg
     ln -sfn "${INSTALL_PATH}"/examples/easy-additions/homing_switch_probe.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs/homing.cfg
+    ln -sfn "${INSTALL_PATH}"/examples/easy-additions/tool_detection_switch_probe.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs/tool_detection.cfg
     ln -sfn "${INSTALL_PATH}"/examples/easy-additions/toolchanger_switch_probe.cfg "${CONFIG_PATH}"/toolchanger/readonly-configs/toolchanger.cfg
 }
 
