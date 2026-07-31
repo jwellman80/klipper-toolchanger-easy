@@ -41,7 +41,7 @@
 
 
 import logging
-from . import probe
+from . import probe, buttons
 
 # The only options a scanner-mode tool section actually uses. Everything
 # else there is probing config the scanner has taken over.
@@ -67,8 +67,12 @@ class _DebounceConfig:
 class SwitchProbeBase:
     # Backends that consume every per-tool option leave this False, so an
     # option nothing reads is still reported as an invalid config option.
-    # Scanner mode sets it True - see PrinterSwitchProbeScanner.
+    # Scanner mode sets it True - see PrinterSwitchProbeDetect.
     _accepts_unused_options = False
+
+    # True only for the scanner backend, where switch_probe never probes
+    # and exists purely for tool presence/crash detection.
+    _detection_only = False
 
     def __init__(self, config):
         self.printer = config.get_printer()
@@ -126,9 +130,10 @@ class SwitchProbeBase:
         return tool
 
     def _register_crash_watcher(self, tool_config, tool):
-        self.buttons.register_debounce_button(
-            tool_config.get('pin'), self._make_crash_callback(tool),
-            self.debounce_config)
+        tool.debounce = buttons.DebounceButton(
+            self.debounce_config, self._make_crash_callback(tool))
+        self.buttons.register_buttons(
+            [tool_config.get('pin')], tool.debounce.button_handler)
 
     def _make_crash_callback(self, tool):
         def callback(eventtime, state):
@@ -212,9 +217,12 @@ class SwitchProbeBase:
         pass
 
     def _tool_present(self, tool):
-        toolhead = self.printer.lookup_object('toolhead')
-        print_time = toolhead.get_last_move_time()
-        triggered = bool(tool.mcu_probe.query_endstop(print_time))
+        state = tool.debounce.physical_state
+        if state is None:
+            toolhead = self.printer.lookup_object('toolhead')
+            print_time = toolhead.get_last_move_time()
+            state = tool.mcu_probe.query_endstop(print_time)
+        triggered = bool(state)
         return triggered == tool.flip_trigger, triggered
 
     def _check_detected(self, gcmd, tool):
@@ -238,6 +246,7 @@ class SwitchProbeBase:
         active = self.tools.get(self.active_tool)
         return {
             'active_probe': active.raw_config if active else {},
+            'detection_only': self._detection_only,
             'confirmed': self.confirmed,
             'detected_tool_number': self.detected_tool_number,
             'switch_probes': sorted(self.tools),
@@ -540,8 +549,9 @@ class SwitchProbeDetect:
 # of that. Each tool's pin is used purely for presence detection and
 # crash detection, so this backend needs none of the Klipper/Kalico
 # probe-interface differences the other two backends have.
-class PrinterSwitchProbeScanner(SwitchProbeBase):
+class PrinterSwitchProbeDetect(SwitchProbeBase):
     _accepts_unused_options = True
+    _detection_only = True
 
     def add_tool(self, tool_config):
         key = tool_config.get_name().split(None, 1)[1]
@@ -579,7 +589,7 @@ def _is_mainline_klipper():
 
 def load_config(config):
     if config.getboolean('scanner', False):
-        return PrinterSwitchProbeScanner(config)
+        return PrinterSwitchProbeDetect(config)
     if _is_mainline_klipper():
         return PrinterSwitchProbeKlipper(config)
     return PrinterSwitchProbeKalico(config)
