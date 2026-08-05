@@ -1,11 +1,20 @@
 
-# define an empty [switch_probe] to init the module
-#
-# Each tool has its own switch_probe section
+# # One time define for scanner and crash settings.
+# [switch_probe]
+# scanner: False # Set to True if using Cartographer/Beacon
+# crash_gcode:
+#     M117 Crash detected!
+# recover_gcode:
+#     M117 Tool recovered.
+# crash_debounce_delay: 0.5
+# verbose: False # Log tool detection to console.
+
+# # Per tool define. Only pin & tool are required if scanner: True
 # [switch_probe T0]
 # pin: ^EBB0:PB6
 # tool: 0
-# z_offset: -0.95 # Needs to be calibrated. More positive = More Squish
+# flip_trigger: False # Set to True to use with ktc tool_detection (optional)
+# z_offset: -0.95
 # speed: 5.0
 # samples: 3
 # samples_result: median
@@ -14,30 +23,7 @@
 # samples_tolerance_retries: 3
 # activate_gcode:
 #     _TAP_PROBE_ACTIVATE HEATER=extruder
-# flip_trigger: False
-#     Set True for tools whose probe pin reads triggered while the tool
-#     is seated, to flip the presence-detection logic.
-#
-# Crash detection is configured on the bare [switch_probe] section
-# and is off until START_CRASH_DETECTION is called - see
-# SwitchProbeBase for details.
-# [switch_probe]
-# crash_gcode:
-#     M117 Crash detected!
-# recover_gcode:
-#     M117 Tool recovered, resuming.
-# crash_debounce_delay: 0.05
-#     Seconds a pin change must persist before it counts. This delays
-#     the crash response by the same amount - the toolhead keeps moving
-#     meanwhile - so raise it only as far as noise actually requires.
-#
-# scanner: True
-#     Set when a scanning probe (Cartographer, Beacon, ...) is the
-#     printer's probe. That scanner does all the probing; every
-#     [switch_probe <tool>] section becomes detection-only, needing
-#     just 'pin' (plus optional 'tool' and 'flip_trigger'). Any
-#     leftover probing options are ignored with a warning in klippy.log.
-#     Leave the scanner's own register_as_probe at its default.
+# ```
 
 
 import logging
@@ -91,6 +77,7 @@ class SwitchProbeBase:
         self.printer.register_event_handler('klippy:connect',
                                             self._handle_connect)
 
+        self.verbose = config.getboolean('verbose', False)
         self.crash_detection_enabled = False
         self.buttons = self.printer.load_object(config, 'buttons')
         gcode_macro = self.printer.load_object(config, 'gcode_macro')
@@ -276,7 +263,8 @@ class SwitchProbeBase:
         if len(present) != 1:
             self.detected_tool_number = -1
             if not present:
-                gcmd.respond_info("switch_probe: no tool detected")
+                if self.verbose:
+                    gcmd.respond_info("switch_probe: no tool detected")
                 return
             raise gcmd.error(
                 "switch_probe: multiple tools detected"
@@ -286,7 +274,8 @@ class SwitchProbeBase:
         self._activate(key)
         self.confirmed = True
         self.detected_tool_number = self.tools[key].tool_number
-        gcmd.respond_info("switch_probe: detected tool '%s'" % (key,))
+        if self.verbose:
+            gcmd.respond_info("switch_probe: detected tool '%s'" % (key,))
 
     cmd_START_CRASH_DETECTION_help = (
         "Treat probe pin transitions on the active, confirmed tool as a"
