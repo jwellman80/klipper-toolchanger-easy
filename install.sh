@@ -1,6 +1,7 @@
 #!/bin/bash
 
 KLIPPER_PATH="${HOME}/klipper"
+KLIPPY_ENV_PATH="${HOME}/klippy-env"
 INSTALL_PATH="${HOME}/klipper-toolchanger-easy"
 CONFIG_PATH="${HOME}/printer_data/config"
 
@@ -37,6 +38,23 @@ function check_download {
         fi
     else
         printf "[DOWNLOAD] repository already found locally. Continuing...\n\n"
+    fi
+}
+
+function install_requirements {
+    if [ -f "${INSTALL_PATH}/requirements.txt" ]; then
+        echo "[REQUIREMENTS] Installing Python requirements..."
+        
+        # Use Klipper's Python environment
+        if [ -f "${KLIPPY_ENV_PATH}/bin/pip" ]; then
+            "${KLIPPY_ENV_PATH}/bin/pip" install -r "${INSTALL_PATH}/requirements.txt"
+            printf "[REQUIREMENTS] Requirements installed successfully!\n\n"
+        else
+            echo "[ERROR] Klipper Python environment not found at ${KLIPPY_ENV_PATH}"
+            exit -1
+        fi
+    else
+        printf "[REQUIREMENTS] No requirements.txt found, skipping...\n\n"
     fi
 }
 
@@ -127,6 +145,7 @@ printf "======================================\n\n"
 # Run steps
 preflight_checks
 check_download
+install_requirements
 do_shared_config
 link_extension
 z_probe_option

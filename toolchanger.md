@@ -147,7 +147,9 @@ All gcode macros below have the following context available:
 # gcode_z_offset: 0
   # The XYZ gcode offset of the toolhead. If set, overrides offset defined 
   # by the parent. If set, even to 0, indicates the offset on that axis is 
-  # relevant for this tool and any adjustments will be attributed to this tool.  
+  # relevant for this tool and any adjustments will be attributed to this tool.
+  # The tool gcode offsets are applied independantly from user Gcode offsets. 
+  # User Gcode offsets are preserved across tool changes.    
 # params_*: 
   # Extra params to pass to pickup/dropoff gcode. Accessible in the gcode via
   # `tool.params_name`.
@@ -155,6 +157,11 @@ All gcode macros below have the following context available:
   #  params_dock_x: 10.0
   #  params_dock_y: 50.0
   #  params_input_shaper_freq_x: 100
+  #  params_input_shaper_type_x: 'mzv'
+  #  params_input_shaper_damping_ratio_x: 0.1
+  #  params_input_shaper_freq_y: 100
+  #  params_input_shaper_type_y: 'mzv'
+  #  params_input_shaper_damping_ratio_y: 0.1
   #  params_retract_mm: 8 
 # t_command_restore_axis: XYZ
    # Which axis to restore with the T<n> command, see SELECT_TOOL for command for more info.
@@ -230,8 +237,14 @@ A verification failure will:
 ### SET_TOOL_TEMPERATURE
 `SET_TOOL_TEMPERATURE [TOOL=<name>] [T=<number>]  TARGET=<temp> [WAIT=0]`: Set tool temperature.
 
+### ENTER_DOCIKING_MODE
+`ENTER_DOCKING_MODE`: Manually enter docking mode, with tool and gcode offsets cleared. Primarily for dock alignment.
+
+### EXIT_DOCIKING_MODE
+`EXIT_DOCKING_MODE`: Exit manual docking mode.
+
 ### TEST_TOOL_DOCKING
-`TEST_TOOL_DOCKING`: Dock and undock current tool.
+`TEST_TOOL_DOCKING`: Dock and undock current tool. Requires manual docking mode.
 
 ### SET_TOOL_PARAMETER
 `SET_TOOL_PARAMETER [TOOL=<name>] [T=<number>]  PARAMETER=parameter_<name> VALUE=<value>`: 
