@@ -93,13 +93,13 @@ class ManualRail:
         self.do_set_position(forcepos)
         endstops = self.rail.get_endstops()
         phoming = self.printer.lookup_object('homing')
-        phoming.manual_home(self, endstops, pos, hi.speed, True, True)
+        phoming.manual_home(self, endstops, pos, hi.speed, False, True, True)
         # Perform second home
         if hi.retract_dist:
             retract_dist = -hi.retract_dist if hi.positive_dir else hi.retract_dist
             self.do_move(hi.position_endstop + retract_dist, hi.speed, accel)
             self.do_set_position(hi.position_endstop + retract_dist * 1.5)
-            phoming.manual_home(self, endstops, pos, hi.second_homing_speed, True, True)
+            phoming.manual_home(self, endstops, pos, hi.second_homing_speed, False, True, True)
     cmd_MANUAL_RAIL_help = "Command a manually configured rail"
     def cmd_MANUAL_RAIL(self, gcmd):
         if gcmd.get('GCODE_AXIS', None) is not None:
