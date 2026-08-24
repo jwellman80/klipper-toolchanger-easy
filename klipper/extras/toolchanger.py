@@ -4,7 +4,7 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 
-import ast, bisect
+import ast, bisect, logging
 from unittest.mock import sentinel
 
 STATUS_UNINITALIZED = 'uninitialized'
@@ -23,6 +23,75 @@ DETECT_UNAVAILABLE = -1
 DETECT_ABSENT = 0
 DETECT_PRESENT = 1
 
+_FUTURE = 9999999999999999.
+
+class ToolInterval:
+    def __init__(self, start, tool):
+        self.start = start
+        self.tool = tool
+        self.end = _FUTURE
+
+class ToolMissingHelper:
+    def __init__(self, toolchanger, config):
+        self.printer = config.get_printer()
+        self.toolchanger = toolchanger
+        self.reactor = self.printer.get_reactor()
+        self.enabled = config.getboolean('abort_on_tool_missing', False)
+        self.wait_time = config.getfloat('tool_missing_delay', 2.0, above=0.)
+        # Keep a log of last 10 active intervals. Probably an overkill.
+        self.active_intervals = []
+        self.tool_lasttime = 0.
+        self.current_tool = None
+        self.printer.register_event_handler('klippy:connect',
+                                            self._handle_connect)
+
+    def _handle_connect(self):
+        self.toolhead = self.printer.lookup_object('toolhead')
+        self.sdcard = self.printer.lookup_object('virtual_sdcard')
+
+    def activate(self, tool):
+        if self.enabled:
+            self.toolhead.register_lookahead_callback(lambda t: self.activate_at_time(t, tool))
+    def deactivate(self):
+        if self.enabled:
+            self.toolhead.register_lookahead_callback(lambda t: self.deactivate_at_time(t))
+
+    def activate_at_time(self, time, tool):
+        if len(self.active_intervals) == 0 or self.active_intervals[-1].end <= time:
+            self.active_intervals.append(ToolInterval(time, tool))
+        if len(self.active_intervals) > 10:
+            del self.active_intervals[0]
+        self.tool_lasttime = time
+        self.reactor.register_callback(lambda _: self._tool_change_delayed(time, tool), time + self.wait_time)
+
+    def deactivate_at_time(self, time):
+        if len(self.active_intervals) > 0 and self.active_intervals[-1].end >= time:
+            self.active_intervals[-1].end = time
+        self.activate_lasttime = 0.
+
+    def note_tool_change(self, eventtime, current_tool):
+        logging.info(f"Tool change to {current_tool} - detected, waiting... ")
+        self.tool_lasttime = eventtime
+        self.current_tool = current_tool
+        self.reactor.register_callback(lambda _: self._tool_change_delayed(eventtime, current_tool),
+                                       eventtime + self.wait_time)
+
+    def find_interval_at(self, eventtime):
+        return next((i for i in self.active_intervals if i.start <= eventtime <= i.end), None)
+
+    def _tool_change_delayed(self, time, current_tool):
+        interval = self.find_interval_at(time)
+        if interval is None:
+            logging.info(f"Tool change to {current_tool}, no active tool requested, ignoring")
+        elif self.tool_lasttime != time:
+            logging.info(f"Tool change to {current_tool} ignored, changed again before timeout")
+        elif not self.sdcard.is_active():
+            logging.info(f"Tool change to {current_tool} ignored, not printing")
+        elif interval and interval.tool == current_tool:
+            logging.info(f"Tool change to {current_tool}, as expected")
+        else:
+            logging.error(f"Tool change to{current_tool} at {time} - mismatch after wait time, expected {interval}, erroring out!!!")
+            self.toolchanger.process_error(None, "Tool no longer attached.")
 
 class Toolchanger:
     def __init__(self, config):
@@ -53,6 +122,8 @@ class Toolchanger:
             config, 'before_change_gcode', '')
         self.default_after_change_gcode = self.gcode_macro.load_template(
             config, 'after_change_gcode', '')
+
+        self.tool_missing_helper = ToolMissingHelper(self, config)
 
         # Read all the fields that might be defined on toolchanger.
         # To avoid throwing config error when no tools configured.
@@ -120,6 +191,8 @@ class Toolchanger:
                                     self.cmd_SAVE_TOOL_PARAMETER)
         self.gcode.register_command("VERIFY_TOOL_DETECTED",
                                     self.cmd_VERIFY_TOOL_DETECTED)
+        self.gcode.register_command("ADJUST_Z_AFTER_TOOL_NOZZLE_HOME",
+                                    self.cmd_ADJUST_Z_AFTER_TOOL_NOZZLE_HOME)
         self.fan_switcher = None
         self.validate_tool_timer = None
 
@@ -138,11 +211,13 @@ class Toolchanger:
 
     def _handle_command_error(self):
         self.status = STATUS_UNINITALIZED
+        self.tool_missing_helper.deactivate()
         self.active_tool = None
         self.gcode_transform.tool = None
 
     def _handle_shutdown(self):
         self.status = STATUS_UNINITALIZED
+        self.tool_missing_helper.deactivate_at_time(_FUTURE)
         self.active_tool = None
         self.gcode_transform.tool = None
 
@@ -213,12 +288,12 @@ class Toolchanger:
         temp = gcmd.get_float('TARGET', 0.)
         wait = gcmd.get_int('WAIT', 0) == 1
         tool = self._get_tool_from_gcmd(gcmd)
-        if not tool.extruder:
+        if not tool.heater:
             raise gcmd.error(
-                "SET_TOOL_TEMPERATURE: No extruder specified for tool %s" % (
+                "SET_TOOL_TEMPERATURE: No extruder or heater specified for tool %s" % (
                     tool.name))
         heaters = self.printer.lookup_object('heaters')
-        heaters.set_temperature(tool.extruder.get_heater(), temp, wait)
+        heaters.set_temperature(tool.heater, temp, wait)
 
     def _get_tool_from_gcmd(self, gcmd):
         tool_name = gcmd.get('TOOL', None)
@@ -244,7 +319,7 @@ class Toolchanger:
                 'SELECT_TOOL_ERROR called while not selecting, doing nothing')
             return
         message = gcmd.get('MESSAGE', '')
-        self._process_error(gcmd.error, message)
+        self.process_error(gcmd.error, message)
 
     cmd_UNSELECT_TOOL_help = "Unselect active tool without selecting a new one"
     def cmd_UNSELECT_TOOL(self, gcmd):
@@ -261,6 +336,7 @@ class Toolchanger:
             raise gcmd.error(
                 "Cannot enter docking mode, toolchanger status is %s, reason: %s" % (self.status, self.error_message))
         self.status = STATUS_CHANGING
+        self.tool_missing_helper.deactivate()
         self._save_state("", None)
         self._set_toolchange_transform()
 
@@ -271,6 +347,7 @@ class Toolchanger:
 
         self._restore_state_and_transform(self.active_tool)
         self.status = STATUS_READY
+        self.tool_missing_helper.activate(self.active_tool)
 
     cmd_TEST_TOOL_DOCKING_help = "Unselect active tool and select it again"
     def cmd_TEST_TOOL_DOCKING(self, gcmd):
@@ -308,6 +385,7 @@ class Toolchanger:
         if should_run_initialize:
             if self.status == STATUS_INITIALIZING:
                 self.status = STATUS_READY
+                self.tool_missing_helper.activate(self.active_tool)
                 self.gcode.respond_info('%s initialized, active %s' %
                                         (self.name,
                                          self.active_tool.name if self.active_tool else None))
@@ -347,6 +425,7 @@ class Toolchanger:
             self.run_gcode('before_change_gcode', before_change_gcode, extra_context)
             self._set_toolchange_transform()
 
+            self.tool_missing_helper.deactivate()
             if self.active_tool:
                 self.run_gcode('tool.dropoff_gcode',
                                self.active_tool.dropoff_gcode, extra_context)
@@ -356,7 +435,13 @@ class Toolchanger:
                 self.run_gcode('tool.pickup_gcode',
                                tool.pickup_gcode, extra_context)
                 if self.has_detection and self.verify_tool_pickup:
+                    toolhead = self.printer.lookup_object('toolhead')
+                    reactor = self.printer.get_reactor()
+                    toolhead.wait_moves()
+                    # Wait some more to allow tool sensors to update
+                    reactor.pause(reactor.monotonic() + 0.2)
                     self.validate_detected_tool(tool, respond_info=gcmd.respond_info, raise_error=gcmd.error)
+                self.tool_missing_helper.activate(tool)
                 self.run_gcode('after_change_gcode',
                                tool.after_change_gcode, extra_context)
 
@@ -377,7 +462,7 @@ class Toolchanger:
                 self.current_change_id = -1
                 raise
 
-    def _process_error(self, raise_error, message):
+    def process_error(self, raise_error, message):
         self.status = STATUS_ERROR
         self.error_message = message
         is_inside_toolchange = self.current_change_id != -1
@@ -447,7 +532,7 @@ class Toolchanger:
     def get_selected_tool(self):
         return self.active_tool
 
-    def note_detect_change(self, tool):
+    def note_detect_change(self, tool, eventtime):
         detected = None
         detected_names = []
         for tool in self.tools.values():
@@ -455,9 +540,9 @@ class Toolchanger:
                 detected = tool
                 detected_names.append(tool.name)
         if len(detected_names) > 1:
-            self.gcode.respond_info("Multiple tools detected: %s" % (detected_names,))
             detected = None
         self.detected_tool = detected
+        self.tool_missing_helper.note_tool_change(eventtime, detected)
 
     def require_detected_tool(self, respond_info):
         if self.detected_tool is not None:
@@ -480,7 +565,7 @@ class Toolchanger:
             expected_name = expected.name if expected else "None"
             actual_name = actual.name if actual else "None"
             message = "Expected tool %s but active is %s" % (expected_name, actual_name)
-            self._process_error(raise_error, message)
+            self.process_error(raise_error, message)
 
     def cmd_VERIFY_TOOL_DETECTED(self, gcmd):
         self._ensure_toolchanger_ready(gcmd)
@@ -612,6 +697,21 @@ class Toolchanger:
             raise gcmd.error('Tool does not have parameter %s' % (name))
         tool.save_parameter(name)
 
+    def cmd_ADJUST_Z_AFTER_TOOL_NOZZLE_HOME(self, gcmd):
+        tool = self.active_tool
+        if not tool:
+            raise gcmd.error("ADJUST_Z_AFTER_TOOL_NOZZLE_HOME - no active tool")
+        self._adjust_z_position_for_tool(tool)
+
+    def _adjust_z_position_for_tool(self, tool):
+        z_offset = tool.gcode_z_offset
+        if z_offset != 0.0:
+            logging.info(f"Toolchanger: Adjusting Z position after homing move by {z_offset}")
+            toolhead = self.printer.lookup_object('toolhead')
+            pos = list(toolhead.get_position())
+            pos[2] += z_offset
+            toolhead.set_position(pos)
+
     def ensure_homed(self, gcmd):
         if not self.uses_axis:
             return
@@ -665,7 +765,7 @@ class Toolchanger:
         if tool_number is not None:
             tool = self.lookup_tool(tool_number)
             if not tool:
-                raise gcmd.error('Tool #%d is not assigned' % (tool_number))
+                raise gcmd.error(f"Tool #{tool_number} is not assigned")
         if tool is None:
             if default == sentinel:
                 raise gcmd.error('Missing TOOL=<name> or T=<number>')
@@ -674,7 +774,7 @@ class Toolchanger:
 
     def _ensure_toolchanger_ready(self, gcmd):
         if self.status not in [STATUS_READY, STATUS_CHANGING]:
-            raise gcmd.error("VERIFY_TOOL_DETECTED: toolchanger not ready: status = %s", (self.status,))
+            raise gcmd.error(f"VERIFY_TOOL_DETECTED: toolchanger not ready: status = {self.status}")
 
 class FanSwitcher:
     def __init__(self, toolchanger, config):
