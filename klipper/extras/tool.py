@@ -36,6 +36,7 @@ class Tool:
         self.params = {**self.toolchanger.params, **toolchanger.get_params_dict(config)}
         self.original_params = {}
         self.extruder_name = self._config_get(config, 'extruder', None)
+        self.heater_name = self._config_get(config, 'heater', None)
         detect_pin_name = config.get('detection_pin', None)
         self.detect_state = toolchanger.DETECT_UNAVAILABLE
         if detect_pin_name:
@@ -43,6 +44,7 @@ class Tool:
             self.detect_state = toolchanger.DETECT_ABSENT
         self.extruder_stepper_name = self._config_get(config, 'extruder_stepper', None)
         self.extruder = None
+        self.heater = None
         self.extruder_stepper = None
         self.fan_name = self._config_get(config, 'fan', None)
         self.fan = None
@@ -51,6 +53,12 @@ class Tool:
         self.t_command_restore_axis = self._config_get(
             config, 't_command_restore_axis', 'XYZ')
         self.tool_number = config.getint('tool_number', -1, minval=0)
+        if self.tool_number >= 0:
+            # Register with the toolchanger during config parsing, so that a
+            # detection pin callback can never arrive before the tools dict is
+            # populated. The T<n> gcode is registered later, at connect, so that
+            # a [gcode_macro T<n>] defined after [tool T<n>] still wins.
+            self.assign_tool(self.tool_number, register_gcode=False)
 
         gcode = self.printer.lookup_object('gcode')
         gcode.register_mux_command("ASSIGN_TOOL", "TOOL", self.name,
@@ -76,6 +84,9 @@ class Tool:
         configfile = self.printer.lookup_object('configfile')
         configfile.set(self.name, name, self.params[name])
 
+    def __str__(self):
+        return self.name
+
     def _apply_param(self, name, value):
         if name == 'gcode_x_offset':
                 self.gcode_x_offset = float(value)
@@ -89,15 +100,20 @@ class Tool:
             self.extruder_name) if self.extruder_name else None
         self.extruder_stepper = self.printer.lookup_object(
             self.extruder_stepper_name) if self.extruder_stepper_name else None
+        if self.heater_name:
+            self.heater = self.printer.lookup_object(self.heater_name)
+        elif self.extruder:
+            self.heater = self.extruder.get_heater()
+            self.heater_name = self.extruder_name
         if self.fan_name:
             self.fan = self.printer.lookup_object(self.fan_name,
                       self.printer.lookup_object("fan_generic " + self.fan_name))
         if self.tool_number >= 0:
-            self.assign_tool(self.tool_number)
+            self.register_t_gcode(self.tool_number)
 
     def _handle_detect(self, eventtime, is_triggered):
         self.detect_state = toolchanger.DETECT_PRESENT if is_triggered else toolchanger.DETECT_ABSENT
-        self.toolchanger.note_detect_change(self)
+        self.toolchanger.note_detect_change(self, eventtime)
 
     def get_status(self, eventtime):
         return {**self.params,
@@ -105,6 +121,7 @@ class Tool:
                 'toolchanger': self.toolchanger.name,
                 'tool_number': self.tool_number,
                 'extruder': self.extruder_name,
+                'heater': self.heater_name,
                 'extruder_stepper': self.extruder_stepper_name,
                 'fan': self.fan_name,
                 'active': self.main_toolchanger.get_selected_tool() == self,
@@ -124,11 +141,12 @@ class Tool:
     def cmd_ASSIGN_TOOL(self, gcmd):
         self.assign_tool(gcmd.get_int('N', minval=0), replace = True)
 
-    def assign_tool(self, number, replace = False):
+    def assign_tool(self, number, replace = False, register_gcode = True):
         prev_number = self.tool_number
         self.tool_number = number
         self.main_toolchanger.assign_tool(self, number, prev_number, replace)
-        self.register_t_gcode(number)
+        if register_gcode:
+            self.register_t_gcode(number)
 
     def register_t_gcode(self, number):
         gcode = self.printer.lookup_object('gcode')

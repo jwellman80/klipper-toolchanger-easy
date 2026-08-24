@@ -47,6 +47,19 @@ primary_branch: main
 ```
 
 ## Changelog
+* 2026.8.23 - Ported upstream fixes from viesturz/klipper-toolchanger (through 2026.4.6):
+     - Fix `manual_rail` homing on current Klipper (`manual_home` argument change). This was broken.
+     - `rounded_path`: drop near-zero residual moves that collapsed lookahead junction velocity.
+     - Fix tool detection not always working at startup (`assign_tool` race).
+     - Add `tool.heater` to specify a heater separately from the extruder.
+     - Add `ADJUST_Z_AFTER_TOOL_NOZZLE_HOME`.
+     - Add opt-in `toolchanger.abort_on_tool_missing` / `tool_missing_delay`.
+     - Stop spamming "Multiple tools detected" on startup.
+     - Dock alignment examples now use `ENTER_DOCKING_MODE` / `EXIT_DOCKING_MODE`.
+
+     Not ported: upstream's `tool.tool_probe` auto-selection and the associated
+     `detection_pin` polarity inversion. Upstream's version of those files targets an
+     older Klipper probe API than this fork requires.
 * 2026.1.25 - Example script for camera tool alignment.
 * 2025.12.26 - **Breaking change** Stop using Gcode offset for tool offsets. Uses a dedicated gcode transform instead.
 * 2025.12.25 - Use Bezier curves for rounded paths.

@@ -123,6 +123,8 @@ All gcode macros below have the following context available:
 # extruder:
   # Name of the extruder to activate when this tool is selected.
   # If not specified, will use parent's extruder.
+# heater:
+  # Name of the heater to use, will override extuder's heater when specificed.  
 # extruder_stepper: 
   # Name of extruder stepper to use for filament motion.
   # When set the main extruder is only used for temperature control.
@@ -165,6 +167,11 @@ All gcode macros below have the following context available:
   #  params_retract_mm: 8 
 # t_command_restore_axis: XYZ
    # Which axis to restore with the T<n> command, see SELECT_TOOL for command for more info.
+# abort_on_tool_missing: False
+  # Detects if tool goes missing during a print and calls `toolchanger.error_gcode`.
+  # Requires tools to have a `detection_pin` configured.
+# tool_missing_delay: 2.0
+  # Delay in seconds before triggering the tool missing logic. 
 ```
 
 # Gcodes
@@ -233,6 +240,10 @@ If ASYNC=1, will return immediately and perform the check in background after al
 A verification failure will:
  - abort in-progress toolchange, put the toolchanger in `ERROR` state.
  - Run`error_gcode` if one is provided. 
+
+### ADJUST_Z_AFTER_TOOL_NOZZLE_HOME
+`ADJUST_Z_AFTER_TOOL_NOZZLE_HOME`: Adjust toolhead Z position after bed probing to account for tool Z offset.
+Klipper's probing code ignores gcode transforms, so this has to be applied manually after a nozzle-based Z home.
 
 ### SET_TOOL_TEMPERATURE
 `SET_TOOL_TEMPERATURE [TOOL=<name>] [T=<number>]  TARGET=<temp> [WAIT=0]`: Set tool temperature.
